@@ -6,42 +6,68 @@ function App() {
   // State to track if the text is bolded
   const [isBolded, setIsBolded] = useState(false);
 
-  // Function to make the first half of every word bold or reset it
-  const toggleBoldFirstHalfOfWords = () => {
-    // Select all text nodes within the body
-    const textElements = document.body.querySelectorAll(
-      "p, h1, h2, h3, h4, h5, h6, span, a, li"
-    );
-
-    if (!isBolded) {
-      // Bold the first half of every word
-      textElements.forEach((element) => {
-        const words = (element as HTMLElement).innerText
-          .split(" ")
-          .map((word) => {
-            const halfIndex = Math.ceil(word.length / 2);
-            return `<span style="font-weight: bold;">${word.slice(
-              0,
-              halfIndex
-            )}</span>${word.slice(halfIndex)}`;
-          });
-
-        (element as HTMLElement).innerHTML = words.join(" ");
-      });
+  function logTabs(tabs: chrome.tabs.Tab[]) {
+    console.log("qdjflsd");
+    if (tabs[0]?.url) {
+      console.log(tabs[0].url);
     } else {
-      // Reset the text to normal
-      textElements.forEach((element) => {
-        const text = (element as HTMLElement).innerHTML.replace(
-          /<\/?span[^>]*>/g,
-          ""
-        ); // Remove all <span> tags
-        (element as HTMLElement).innerHTML = text; // Set the cleaned text back to the element
-      });
+      console.error("No active tab URL found.");
     }
+  }
 
-    // Toggle the isBolded state
+  const toggle = () => {
+    console.log("sldkjfsd");
+    // Send a message to the content script to toggle bolding
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      logTabs(tabs); // Log the URL
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: "toggleBold",
+          isBolded: !isBolded,
+        });
+      }
+    });
+
+    // Toggle the local state
     setIsBolded(!isBolded);
   };
+
+  // Function to make the first half of every word bold or reset it
+  // const toggleBoldFirstHalfOfWords = () => {
+  //   // Select all text nodes within the body
+  //   const textElements = document.body.querySelectorAll(
+  //     "p, h1, h2, h3, h4, h5, h6, span, a, li"
+  //   );
+
+  //   if (!isBolded) {
+  //     // Bold the first half of every word
+  //     textElements.forEach((element) => {
+  //       const words = (element as HTMLElement).innerText
+  //         .split(" ")
+  //         .map((word) => {
+  //           const halfIndex = Math.ceil(word.length / 2);
+  //           return `<span style="font-weight: bold;">${word.slice(
+  //             0,
+  //             halfIndex
+  //           )}</span>${word.slice(halfIndex)}`;
+  //         });
+
+  //       (element as HTMLElement).innerHTML = words.join(" ");
+  //     });
+  //   } else {
+  //     // Reset the text to normal
+  //     textElements.forEach((element) => {
+  //       const text = (element as HTMLElement).innerHTML.replace(
+  //         /<\/?span[^>]*>/g,
+  //         ""
+  //       ); // Remove all <span> tags
+  //       (element as HTMLElement).innerHTML = text; // Set the cleaned text back to the element
+  //     });
+  //   }
+
+  //   // Toggle the isBolded state
+  //   setIsBolded(!isBolded);
+  // };
 
   return (
     <MantineProvider>
@@ -60,7 +86,7 @@ function App() {
         <Stack align="center" justify="center" gap="md">
           <Switch
             checked={isBolded}
-            onChange={toggleBoldFirstHalfOfWords}
+            onChange={toggle}
             onLabel="ON"
             offLabel="OFF"
             size="lg"
