@@ -1,25 +1,13 @@
 import "@mantine/core/styles.css";
 import { Container, MantineProvider, Switch, Text, Stack } from "@mantine/core";
-import { useState } from "react"; // Import useState
+import { useState } from "react";
 
 function App() {
-  // State to track if the text is bolded
   const [isBolded, setIsBolded] = useState(false);
+  const [isPopupBolded, setIsPopupBolded] = useState(false);
 
-  function logTabs(tabs: chrome.tabs.Tab[]) {
-    console.log("qdjflsd");
-    if (tabs[0]?.url) {
-      console.log(tabs[0].url);
-    } else {
-      console.error("No active tab URL found.");
-    }
-  }
-
-  const toggle = () => {
-    console.log("sldkjfsd");
-    // Send a message to the content script to toggle bolding
+  const toggleWebpageBold = () => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      logTabs(tabs); // Log the URL
       if (tabs[0]?.id) {
         chrome.tabs.sendMessage(tabs[0].id, {
           action: "toggleBold",
@@ -27,47 +15,63 @@ function App() {
         });
       }
     });
-
-    // Toggle the local state
     setIsBolded(!isBolded);
   };
 
-  // Function to make the first half of every word bold or reset it
-  // const toggleBoldFirstHalfOfWords = () => {
-  //   // Select all text nodes within the body
-  //   const textElements = document.body.querySelectorAll(
-  //     "p, h1, h2, h3, h4, h5, h6, span, a, li"
-  //   );
+  const togglePopupBold = () => {
+    const textElements = document.body.querySelectorAll(
+      "p, h1, h2, h3, h4, h5, h6, span, a, li"
+    );
 
-  //   if (!isBolded) {
-  //     // Bold the first half of every word
-  //     textElements.forEach((element) => {
-  //       const words = (element as HTMLElement).innerText
-  //         .split(" ")
-  //         .map((word) => {
-  //           const halfIndex = Math.ceil(word.length / 2);
-  //           return `<span style="font-weight: bold;">${word.slice(
-  //             0,
-  //             halfIndex
-  //           )}</span>${word.slice(halfIndex)}`;
-  //         });
+    if (!isPopupBolded) {
+      textElements.forEach((element) => {
+        element.childNodes.forEach((node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            const words = node.textContent?.split(" ").map((word) => {
+              // Capture leading symbols
+              const leadingSymbolsMatch = word.match(/^([^\w]+)/);
+              const leadingSymbols = leadingSymbolsMatch
+                ? leadingSymbolsMatch[0]
+                : "";
 
-  //       (element as HTMLElement).innerHTML = words.join(" ");
-  //     });
-  //   } else {
-  //     // Reset the text to normal
-  //     textElements.forEach((element) => {
-  //       const text = (element as HTMLElement).innerHTML.replace(
-  //         /<\/?span[^>]*>/g,
-  //         ""
-  //       ); // Remove all <span> tags
-  //       (element as HTMLElement).innerHTML = text; // Set the cleaned text back to the element
-  //     });
-  //   }
+              // Capture trailing symbols
+              const trailingSymbolsMatch = word.match(/([^\w]+)$/);
+              const trailingSymbols = trailingSymbolsMatch
+                ? trailingSymbolsMatch[0]
+                : "";
 
-  //   // Toggle the isBolded state
-  //   setIsBolded(!isBolded);
-  // };
+              // Clean the word by stripping leading and trailing symbols
+              const cleanedWord = word.replace(/^[^\w]+|[^\w]+$/g, "");
+              const halfIndex = Math.ceil(cleanedWord.length / 2);
+
+              // Construct the word with inline styles for font weights
+              return `${leadingSymbols}<span style="font-weight: 700;">${cleanedWord.slice(
+                0,
+                halfIndex
+              )}</span><span style="font-weight: 400;">${cleanedWord.slice(
+                halfIndex
+              )}</span>${trailingSymbols}`;
+            });
+
+            // Create a span wrapper and set the HTML
+            const spanWrapper = document.createElement("span");
+            spanWrapper.innerHTML = words?.join(" ") || ""; // Handle undefined safely
+
+            // Replace the original text node with the new span
+            node.replaceWith(spanWrapper);
+          }
+        });
+      });
+    } else {
+      // Reset the text to normal
+      textElements.forEach((element) => {
+        const el = element as HTMLElement; // Type assertion
+        el.innerHTML = el.innerHTML.replace(/<\/?span[^>]*>/g, "");
+      });
+    }
+
+    setIsPopupBolded(!isPopupBolded);
+  };
 
   return (
     <MantineProvider>
@@ -79,20 +83,32 @@ function App() {
           alignItems: "center",
           justifyContent: "center",
           padding: "20px",
-          width: "400px", // Set a max width for the extension popup
-          height: "100%", // Fill the height
+          width: "400px",
+          height: "100%",
         }}
       >
         <Stack align="center" justify="center" gap="md">
           <Switch
             checked={isBolded}
-            onChange={toggle}
+            onChange={toggleWebpageBold}
             onLabel="ON"
             offLabel="OFF"
             size="lg"
             color="teal"
           />
-          <Text ta="center" size="sm">
+          <Text ta="center" size="md">
+            Toggle webpage bolding
+          </Text>
+
+          <Switch
+            checked={isPopupBolded}
+            onChange={togglePopupBold}
+            onLabel="ON"
+            offLabel="OFF"
+            size="lg"
+            color="blue"
+          />
+          <Text ta="center" size="md">
             This is a Chrome extension that bolds the first half of each word on
             the page so that you can read the text faster. Currently in
             progress.
