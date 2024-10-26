@@ -1,7 +1,7 @@
 // Function to bold the first half of every word in text nodes
 const boldFirstHalfOfWords = () => {
   const textElements = document.body.querySelectorAll(
-    "p, h1, h2, h3, h4, h5, h6, span, a, li"
+    "p, h1, h2, h3, h4, h5, h6, span, a, li, pre, b, i, strike, blockquote, strong, em, code, small, sub, sup"
   );
 
   textElements.forEach((element) => {
@@ -44,17 +44,9 @@ const boldFirstHalfOfWords = () => {
   });
 };
 
-// Function to reset the text to normal
+// Function to reset the text to normal by refreshing the page
 const resetText = () => {
-  const textElements = document.body.querySelectorAll(
-    "p, h1, h2, h3, h4, h5, h6, span, a, li"
-  );
-
-  // Reset the text to normal
-  textElements.forEach((element) => {
-    const el = element; // Type assertion
-    el.innerHTML = el.innerHTML.replace(/<\/?span[^>]*>/g, ""); // Remove spans
-  });
+  location.reload(); // Refresh the page
 };
 
 // Listen for messages from the popup
@@ -63,7 +55,7 @@ chrome.runtime.onMessage.addListener((request) => {
     if (request.isBolded) {
       boldFirstHalfOfWords(); // Call to bold the first half of words
     } else {
-      resetText(); // Reset to normal text
+      resetText(); // Refresh the page
     }
   }
 });
