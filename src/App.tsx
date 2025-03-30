@@ -1,5 +1,13 @@
 import "@mantine/core/styles.css";
-import { Container, MantineProvider, Switch, Text, Stack } from "@mantine/core";
+import {
+  Container,
+  MantineProvider,
+  Switch,
+  Text,
+  Stack,
+  Image,
+  Group,
+} from "@mantine/core";
 import { useState } from "react";
 
 function App() {
@@ -88,6 +96,26 @@ function App() {
         }}
       >
         <Stack align="center" justify="center" gap="md">
+          <Group align="center">
+            <Image
+              src="icon128.png"
+              alt="Logo"
+              style={{
+                maxWidth: "40px",
+                maxHeight: "40px",
+                display: "block",
+                marginRight: "8px", // Add space between logo and text
+              }}
+            />
+            <Text size="lg">Half Word Bolder</Text>
+          </Group>
+          <Text ta="center" size="sm">
+            Bold the first half of each word on the page (or a selected area of
+            text) so that you can read the text faster.
+          </Text>
+          <Text ta="center" size="md">
+            Toggle webpage text bolding
+          </Text>
           <Switch
             checked={isBolded}
             onChange={toggleWebpageBold}
@@ -97,9 +125,8 @@ function App() {
             color="teal"
           />
           <Text ta="center" size="md">
-            Toggle webpage bolding
+            Try example below
           </Text>
-
           <Switch
             checked={isPopupBolded}
             onChange={togglePopupBold}
@@ -108,11 +135,6 @@ function App() {
             size="lg"
             color="blue"
           />
-          <Text ta="center" size="md">
-            This is a Chrome extension that bolds the first half of each word on
-            the page so that you can read the text faster. Currently in
-            progress.
-          </Text>
         </Stack>
       </Container>
     </MantineProvider>
