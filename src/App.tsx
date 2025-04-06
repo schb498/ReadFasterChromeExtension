@@ -8,22 +8,34 @@ import {
   Image,
   Group,
 } from "@mantine/core";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function App() {
   const [isBolded, setIsBolded] = useState(false);
   const [isPopupBolded, setIsPopupBolded] = useState(false);
 
+  useEffect(() => {
+    chrome.storage.local.get(["isBolded"], (result) => {
+      if (typeof result.isBolded === "boolean") {
+        setIsBolded(result.isBolded);
+      }
+    });
+  }, []);
+
   const toggleWebpageBold = () => {
+    const newValue = !isBolded;
+
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]?.id) {
         chrome.tabs.sendMessage(tabs[0].id, {
           action: "toggleBold",
-          isBolded: !isBolded,
+          isBolded: newValue,
         });
       }
     });
-    setIsBolded(!isBolded);
+
+    chrome.storage.local.set({ isBolded: newValue });
+    setIsBolded(newValue);
   };
 
   const togglePopupBold = () => {
