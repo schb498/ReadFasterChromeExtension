@@ -1,4 +1,5 @@
 import "@mantine/core/styles.css";
+import styles from "./App.module.css";
 import {
   Container,
   MantineProvider,
@@ -7,6 +8,9 @@ import {
   Stack,
   Image,
   Group,
+  Paper,
+  Divider,
+  Badge,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 
@@ -40,6 +44,15 @@ function App() {
 
       // Save bold state for this tab
       chrome.storage.local.set({ [tabId.toString()]: newValue });
+
+      chrome.action.setBadgeText({
+        text: newValue ? "ON" : "",
+        tabId: tabId,
+      });
+      chrome.action.setBadgeBackgroundColor({
+        color: "#14b8a6",
+        tabId: tabId,
+      });
     });
 
     setIsBolded(newValue);
@@ -82,9 +95,7 @@ function App() {
 
             // Create a span wrapper and set the HTML
             const spanWrapper = document.createElement("span");
-            spanWrapper.innerHTML = words?.join(" ") || ""; // Handle undefined safely
-
-            // Replace the original text node with the new span
+            spanWrapper.innerHTML = words?.join(" ") || "";
             node.replaceWith(spanWrapper);
           }
         });
@@ -92,7 +103,7 @@ function App() {
     } else {
       // Reset the text to normal
       textElements.forEach((element) => {
-        const el = element as HTMLElement; // Type assertion
+        const el = element as HTMLElement;
         el.innerHTML = el.innerHTML.replace(/<\/?span[^>]*>/g, "");
       });
     }
@@ -102,58 +113,89 @@ function App() {
 
   return (
     <MantineProvider>
-      <Container
-        fluid
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "20px",
-          width: "400px",
-          height: "100%",
-        }}
-      >
-        <Stack align="center" justify="center" gap="md">
-          <Group align="center">
-            <Image
-              src="icon128.png"
-              alt="Logo"
-              style={{
-                maxWidth: "40px",
-                maxHeight: "40px",
-                display: "block",
-                marginRight: "8px", // Add space between logo and text
-              }}
-            />
-            <Text size="lg">Half Word Bolder</Text>
-          </Group>
-          <Text ta="center" size="sm">
-            Bold the first half of each word on the page (or a selected area of
-            text) so that you can read the text faster.
-          </Text>
-          <Text ta="center" size="md">
-            Toggle webpage text bolding
-          </Text>
-          <Switch
-            checked={isBolded}
-            onChange={toggleWebpageBold}
-            onLabel="ON"
-            offLabel="OFF"
-            size="lg"
-            color="teal"
-          />
-          <Text ta="center" size="md">
-            Try example below
-          </Text>
-          <Switch
-            checked={isPopupBolded}
-            onChange={togglePopupBold}
-            onLabel="ON"
-            offLabel="OFF"
-            size="lg"
-            color="blue"
-          />
+      <Container fluid className={styles.container}>
+        <Stack gap={0}>
+          <Paper className={styles.header}>
+            <Group justify="center" gap="sm">
+              <Image src="icon128.png" alt="Logo" className={styles.logo} />
+              <Text size="xl" fw={700} className={styles.title}>
+                Half Word Bolder
+              </Text>
+            </Group>
+            <Text ta="center" size="xs" c="dimmed" mt="xs">
+              Improve reading experience by bolding the first half of each word
+            </Text>
+          </Paper>
+
+          <Stack gap="lg" className={styles.content}>
+            <Paper
+              p="md"
+              radius="md"
+              className={`${styles.card} ${isBolded ? styles.cardActive : ""}`}
+            >
+              <Group justify="space-between" align="center">
+                <div className={styles.cardText}>
+                  <Group gap="xs" mb={4}>
+                    <Text size="md" fw={600}>
+                      Current Page
+                    </Text>
+                    {isBolded && (
+                      <Badge size="sm" color="teal" variant="filled">
+                        Active
+                      </Badge>
+                    )}
+                  </Group>
+                  <Text size="xs" c="dimmed">
+                    Toggle bolding for this webpage
+                  </Text>
+                </div>
+                <Switch
+                  checked={isBolded}
+                  onChange={toggleWebpageBold}
+                  size="lg"
+                  color="teal"
+                  onLabel="ON"
+                  offLabel="OFF"
+                />
+              </Group>
+            </Paper>
+
+            <Divider labelPosition="center" />
+
+            <Paper
+              p="md"
+              radius="md"
+              className={`${styles.card} ${
+                isPopupBolded ? styles.cardActiveDemo : ""
+              }`}
+            >
+              <Group justify="space-between" align="center">
+                <div className={styles.cardText}>
+                  <Group gap="xs" mb={4}>
+                    <Text size="md" fw={600}>
+                      Try Example
+                    </Text>
+                    {isPopupBolded && (
+                      <Badge size="sm" color="blue" variant="filled">
+                        Active
+                      </Badge>
+                    )}
+                  </Group>
+                  <Text size="xs" c="dimmed">
+                    See the effect on this popup
+                  </Text>
+                </div>
+                <Switch
+                  checked={isPopupBolded}
+                  onChange={togglePopupBold}
+                  size="lg"
+                  color="blue"
+                  onLabel="ON"
+                  offLabel="OFF"
+                />
+              </Group>
+            </Paper>
+          </Stack>
         </Stack>
       </Container>
     </MantineProvider>

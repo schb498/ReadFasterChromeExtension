@@ -1,0 +1,45 @@
+.container {
+  width: 380px;
+  padding: 0;
+  background: #667eea 80%;
+}
+
+.header {
+  background: rgba(255, 255, 255, 0.95);
+  padding: 20px;
+  border-radius: 0;
+}
+
+.logo {
+  width: 36px;
+  height: 36px;
+}
+
+.title {
+  color: #14b8a6;
+}
+
+.content {
+  background: white;
+  padding: 24px;
+}
+
+.card {
+  border: 2px solid #e9ecef;
+  background: #f8f9fa;
+  transition: all 0.3s ease;
+}
+
+.cardActive {
+  background: linear-gradient(135deg, #d4f4dd 0%, #e3f9e5 100%);
+  border-color: #14b8a6;
+}
+
+.cardActiveDemo {
+  background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+  border-color: #3b82f6;
+}
+
+.cardText {
+  flex: 1;
+}
