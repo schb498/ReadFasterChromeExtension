@@ -1,4 +1,7 @@
-// Function to bold the first half of every word in text nodes
+let originalHTML = document.body.innerHTML;
+let isBolded = false;
+
+// Bold the first half of every word in text nodes
 const boldFirstHalfOfWords = () => {
   const textElements = document.body.querySelectorAll(
     "p, h1, h2, h3, h4, h5, h6, span, a, li, pre, b, i, strike, blockquote, strong, em, code, small, sub, sup"
@@ -6,9 +9,9 @@ const boldFirstHalfOfWords = () => {
 
   textElements.forEach((element) => {
     element.childNodes.forEach((node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const words = node.textContent?.split(" ").map((word) => {
-          // Clean leading/trailing symbols
+      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== "") {
+        const words = node.textContent.split(" ").map((word) => {
+          // Trim leading and trailing symbols
           const leadingSymbolsMatch = word.match(/^([^\w]+)/);
           const leadingSymbols = leadingSymbolsMatch
             ? leadingSymbolsMatch[0]
@@ -21,25 +24,28 @@ const boldFirstHalfOfWords = () => {
           const halfIndex = Math.ceil(cleanedWord.length / 2);
 
           // Construct the word with inline styles for font weights
-          return `${leadingSymbols}<span style="font-weight: 700;">${cleanedWord.slice(
-            0,
-            halfIndex
-          )}</span><span style="font-weight: 400;">${cleanedWord.slice(
-            halfIndex
-          )}</span>${trailingSymbols}`;
+          return (
+            leadingSymbols +
+            `<span style="font-weight:700;">${cleanedWord.slice(
+              0,
+              halfIndex
+            )}</span>` +
+            `<span style="font-weight:400;">${cleanedWord.slice(
+              halfIndex
+            )}</span>` +
+            trailingSymbols
+          );
         });
 
-        // Create a span wrapper and set the HTML
         const spanWrapper = document.createElement("span");
-        spanWrapper.innerHTML = words?.join(" ") || ""; // Handle undefined safely
-
-        // Replace the original text node with the new span
+        spanWrapper.innerHTML = words.join(" ");
         node.replaceWith(spanWrapper);
       }
     });
   });
 };
 
+// Bold only the selected text
 const boldFirstHalfOfSelectedWords = (text) => {
   return text
     .split(" ")
@@ -58,13 +64,17 @@ const boldFirstHalfOfSelectedWords = (text) => {
       const cleanedWord = word.replace(/^[^\w]+|[^\w]+$/g, "");
       const halfIndex = Math.ceil(cleanedWord.length / 2);
 
-      // Construct the bolded version of the word
-      return `${leadingSymbols}<span style="font-weight: 700;">${cleanedWord.slice(
-        0,
-        halfIndex
-      )}</span><span style="font-weight: 400;">${cleanedWord.slice(
-        halfIndex
-      )}</span>${trailingSymbols}`;
+      return (
+        leadingSymbols +
+        `<span style="font-weight:700;">${cleanedWord.slice(
+          0,
+          halfIndex
+        )}</span>` +
+        `<span style="font-weight:400;">${cleanedWord.slice(
+          halfIndex
+        )}</span>` +
+        trailingSymbols
+      );
     })
     .join(" ");
 };
@@ -80,31 +90,39 @@ const boldFirstHalfOfSelectedText = () => {
 
   // Create a span element to hold the new formatted text
   const span = document.createElement("span");
-
   span.innerHTML = boldFirstHalfOfSelectedWords(selectedText);
 
   // Replace the selected text with the new span
   range.deleteContents();
   range.insertNode(span);
 
-  return true; // Indicate that text was selected and bolded
+  return true;
 };
 
-// Function to reset the text to normal by refreshing the page
+// Function to reset the text to normal
 const resetText = () => {
-  location.reload(); // Refresh the page
+  if (originalHTML) {
+    document.body.innerHTML = originalHTML;
+  }
 };
 
 // Listen for messages from the popup
-chrome.runtime.onMessage.addListener((request) => {
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "toggleBold") {
-    if (request.isBolded) {
+    if (request.isBolded && !isBolded) {
+      // Save the original HTML only once
+      if (!originalHTML) originalHTML = document.body.innerHTML;
+
       const isSelectionBolded = boldFirstHalfOfSelectedText();
       if (!isSelectionBolded) {
-        boldFirstHalfOfWords(); // Call to bold the first half of words for entire page
+        boldFirstHalfOfWords();
       }
-    } else {
-      resetText(); // Refresh the page
+      isBolded = true;
+      sendResponse({ success: true, state: "bolded" });
+    } else if (!request.isBolded && isBolded) {
+      resetText();
+      isBolded = false;
+      sendResponse({ success: true, state: "reset" });
     }
   }
 });

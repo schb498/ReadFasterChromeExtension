@@ -14,11 +14,18 @@ function App() {
   const [isBolded, setIsBolded] = useState(false);
   const [isPopupBolded, setIsPopupBolded] = useState(false);
 
+  // Get the bold state for the current tab
   useEffect(() => {
-    chrome.storage.local.get(["isBolded"], (result) => {
-      if (typeof result.isBolded === "boolean") {
-        setIsBolded(result.isBolded);
-      }
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs[0]?.id;
+      if (!tabId) return;
+
+      chrome.runtime.sendMessage(
+        { action: "getBoldState" },
+        (state: boolean) => {
+          setIsBolded(state);
+        }
+      );
     });
   }, []);
 
@@ -26,18 +33,22 @@ function App() {
     const newValue = !isBolded;
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]?.id) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          action: "toggleBold",
-          isBolded: newValue,
-        });
-      }
+      if (!tabs[0]?.id) return;
+
+      chrome.tabs.sendMessage(tabs[0].id, {
+        action: "toggleBold",
+        isBolded: newValue,
+      });
+
+      // Save bold state for this tab
+      chrome.runtime.sendMessage({
+        action: "setBoldState",
+        isBolded: newValue,
+      });
     });
 
-    chrome.storage.local.set({ isBolded: newValue });
     setIsBolded(newValue);
   };
-
   const togglePopupBold = () => {
     const textElements = document.body.querySelectorAll(
       "p, h1, h2, h3, h4, h5, h6, span, a, li"

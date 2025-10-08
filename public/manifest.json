@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "My React Chrome Extension",
-  "version": "1.0",
-  "description": "A Chrome extension built with React and Vite.",
+  "version": "1.0.1",
+  "description": "A browser extension to improve reading experience on web pages.",
   "permissions": ["storage", "activeTab", "scripting"],
   "background": {
     "service_worker": "background.js"
