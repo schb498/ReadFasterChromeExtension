@@ -20,12 +20,9 @@ function App() {
       const tabId = tabs[0]?.id;
       if (!tabId) return;
 
-      chrome.runtime.sendMessage(
-        { action: "getBoldState" },
-        (state: boolean) => {
-          setIsBolded(state);
-        }
-      );
+      chrome.storage.local.get([tabId.toString()], (result) => {
+        setIsBolded(result[tabId.toString()] || false);
+      });
     });
   }, []);
 
@@ -33,22 +30,21 @@ function App() {
     const newValue = !isBolded;
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs[0]?.id) return;
+      const tabId = tabs[0]?.id;
+      if (!tabId) return;
 
-      chrome.tabs.sendMessage(tabs[0].id, {
+      chrome.tabs.sendMessage(tabId, {
         action: "toggleBold",
         isBolded: newValue,
       });
 
       // Save bold state for this tab
-      chrome.runtime.sendMessage({
-        action: "setBoldState",
-        isBolded: newValue,
-      });
+      chrome.storage.local.set({ [tabId.toString()]: newValue });
     });
 
     setIsBolded(newValue);
   };
+
   const togglePopupBold = () => {
     const textElements = document.body.querySelectorAll(
       "p, h1, h2, h3, h4, h5, h6, span, a, li"
