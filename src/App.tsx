@@ -11,22 +11,27 @@ import {
   Paper,
   Divider,
   Badge,
+  Button,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 
 function App() {
   const [isBolded, setIsBolded] = useState(false);
   const [isPopupBolded, setIsPopupBolded] = useState(false);
+  const [boldWeight, setBoldWeight] = useState(700);
 
-  // Get the bold state for the current tab
   useEffect(() => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tabId = tabs[0]?.id;
       if (!tabId) return;
 
-      chrome.storage.local.get([tabId.toString()], (result) => {
-        setIsBolded(result[tabId.toString()] || false);
-      });
+      chrome.storage.local.get(
+        [tabId.toString(), `${tabId}_weight`],
+        (result) => {
+          setIsBolded(result[tabId.toString()] || false);
+          setBoldWeight(result[`${tabId}_weight`] || 700);
+        }
+      );
     });
   }, []);
 
@@ -40,9 +45,9 @@ function App() {
       chrome.tabs.sendMessage(tabId, {
         action: "toggleBold",
         isBolded: newValue,
+        boldWeight: boldWeight,
       });
 
-      // Save bold state for this tab
       chrome.storage.local.set({ [tabId.toString()]: newValue });
 
       chrome.action.setBadgeText({
@@ -50,12 +55,30 @@ function App() {
         tabId: tabId,
       });
       chrome.action.setBadgeBackgroundColor({
-        color: "#14b8a6",
+        color: newValue ? "#667eea" : "#00000000",
         tabId: tabId,
       });
     });
 
     setIsBolded(newValue);
+  };
+
+  const handleBoldWeightChange = (value: number) => {
+    setBoldWeight(value);
+
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs[0]?.id;
+      if (!tabId) return;
+
+      chrome.storage.local.set({ [`${tabId}_weight`]: value });
+
+      if (isBolded) {
+        chrome.tabs.sendMessage(tabId, {
+          action: "updateBoldWeight",
+          boldWeight: value,
+        });
+      }
+    });
   };
 
   const togglePopupBold = () => {
@@ -68,24 +91,20 @@ function App() {
         element.childNodes.forEach((node) => {
           if (node.nodeType === Node.TEXT_NODE) {
             const words = node.textContent?.split(" ").map((word) => {
-              // Capture leading symbols
               const leadingSymbolsMatch = word.match(/^([^\w]+)/);
               const leadingSymbols = leadingSymbolsMatch
                 ? leadingSymbolsMatch[0]
                 : "";
 
-              // Capture trailing symbols
               const trailingSymbolsMatch = word.match(/([^\w]+)$/);
               const trailingSymbols = trailingSymbolsMatch
                 ? trailingSymbolsMatch[0]
                 : "";
 
-              // Clean the word by stripping leading and trailing symbols
               const cleanedWord = word.replace(/^[^\w]+|[^\w]+$/g, "");
               const halfIndex = Math.ceil(cleanedWord.length / 2);
 
-              // Construct the word with inline styles for font weights
-              return `${leadingSymbols}<span style="font-weight: 700;">${cleanedWord.slice(
+              return `${leadingSymbols}<span style="font-weight: ${boldWeight};">${cleanedWord.slice(
                 0,
                 halfIndex
               )}</span><span style="font-weight: 400;">${cleanedWord.slice(
@@ -93,7 +112,6 @@ function App() {
               )}</span>${trailingSymbols}`;
             });
 
-            // Create a span wrapper and set the HTML
             const spanWrapper = document.createElement("span");
             spanWrapper.innerHTML = words?.join(" ") || "";
             node.replaceWith(spanWrapper);
@@ -101,7 +119,6 @@ function App() {
         });
       });
     } else {
-      // Reset the text to normal
       textElements.forEach((element) => {
         const el = element as HTMLElement;
         el.innerHTML = el.innerHTML.replace(/<\/?span[^>]*>/g, "");
@@ -158,6 +175,64 @@ function App() {
                   offLabel="OFF"
                 />
               </Group>
+            </Paper>
+
+            <Paper p="md" radius="md" className={styles.card}>
+              <Stack gap="sm">
+                <Group justify="space-between">
+                  <Text size="md" fw={600}>
+                    Boldness
+                  </Text>
+                  <Badge variant="light" color="gray">
+                    {boldWeight}
+                  </Badge>
+                </Group>
+                <Text size="xs" c="dimmed" mb="xs">
+                  Adjust the weight of the bolded text
+                </Text>
+                <Group grow>
+                  <Button
+                    variant={boldWeight === 300 ? "filled" : "light"}
+                    color="violet"
+                    size="xs"
+                    onClick={() => handleBoldWeightChange(300)}
+                  >
+                    Light
+                  </Button>
+                  <Button
+                    variant={boldWeight === 400 ? "filled" : "light"}
+                    color="violet"
+                    size="xs"
+                    onClick={() => handleBoldWeightChange(400)}
+                  >
+                    Normal
+                  </Button>
+                  <Button
+                    variant={boldWeight === 600 ? "filled" : "light"}
+                    color="violet"
+                    size="xs"
+                    onClick={() => handleBoldWeightChange(600)}
+                  >
+                    Semi
+                  </Button>
+                  <Button
+                    variant={boldWeight === 700 ? "filled" : "light"}
+                    color="violet"
+                    size="xs"
+                    onClick={() => handleBoldWeightChange(700)}
+                  >
+                    Bold
+                  </Button>
+                  <Button
+                    variant={boldWeight === 900 ? "filled" : "light"}
+                    color="violet"
+                    size="xs"
+                    onClick={() => handleBoldWeightChange(900)}
+                  >
+                    Black
+                  </Button>
+                </Group>
+              </Stack>
             </Paper>
 
             <Divider labelPosition="center" />

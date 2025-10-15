@@ -1,7 +1,7 @@
 .container {
   width: 380px;
   padding: 0;
-  background: #667eea 80%;
+  background: #667eea;
 }
 
 .header {
@@ -42,4 +42,26 @@
 
 .cardText {
   flex: 1;
+}
+
+.weightButton {
+  background: #f1f3f5;
+  color: #495057;
+  border: 1px solid #dee2e6;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.weightButton:hover {
+  background: #e9ecef;
+}
+
+.weightButtonActive {
+  background: #868e96;
+  color: white;
+  border-color: #868e96;
 }

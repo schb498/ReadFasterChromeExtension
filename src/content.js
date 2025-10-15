@@ -1,8 +1,8 @@
-let originalHTML = document.body.innerHTML;
 let isBolded = false;
+let currentBoldWeight = 700;
 
 // Bold the first half of every word in text nodes
-const boldFirstHalfOfWords = () => {
+const boldFirstHalfOfWords = (weight = 700) => {
   const textElements = document.body.querySelectorAll(
     "p, h1, h2, h3, h4, h5, h6, span, a, li, pre, b, i, strike, blockquote, strong, em, code, small, sub, sup"
   );
@@ -21,16 +21,22 @@ const boldFirstHalfOfWords = () => {
             ? trailingSymbolsMatch[0]
             : "";
           const cleanedWord = word.replace(/^[^\w]+|[^\w]+$/g, "");
+
+          // Skip if no actual word content
+          if (!cleanedWord) {
+            return word;
+          }
+
           const halfIndex = Math.ceil(cleanedWord.length / 2);
 
-          // Construct the word with inline styles for font weights
+          // Construct the word with inline styles and data attribute
           return (
             leadingSymbols +
-            `<span style="font-weight:700;">${cleanedWord.slice(
+            `<span data-hwb style="font-weight:${weight};">${cleanedWord.slice(
               0,
               halfIndex
             )}</span>` +
-            `<span style="font-weight:400;">${cleanedWord.slice(
+            `<span data-hwb style="font-weight:400;">${cleanedWord.slice(
               halfIndex
             )}</span>` +
             trailingSymbols
@@ -38,6 +44,7 @@ const boldFirstHalfOfWords = () => {
         });
 
         const spanWrapper = document.createElement("span");
+        spanWrapper.setAttribute("data-hwb", "");
         spanWrapper.innerHTML = words.join(" ");
         node.replaceWith(spanWrapper);
       }
@@ -46,31 +53,35 @@ const boldFirstHalfOfWords = () => {
 };
 
 // Bold only the selected text
-const boldFirstHalfOfSelectedWords = (text) => {
+const boldFirstHalfOfSelectedWords = (text, weight = 700) => {
   return text
     .split(" ")
     .map((word) => {
       // Capture leading symbols
       const leadingSymbolsMatch = word.match(/^([^\w]+)/);
       const leadingSymbols = leadingSymbolsMatch ? leadingSymbolsMatch[0] : "";
-
       // Capture trailing symbols
       const trailingSymbolsMatch = word.match(/([^\w]+)$/);
       const trailingSymbols = trailingSymbolsMatch
         ? trailingSymbolsMatch[0]
         : "";
-
       // Clean the word by stripping leading and trailing symbols
       const cleanedWord = word.replace(/^[^\w]+|[^\w]+$/g, "");
+
+      // Skip if no actual word content
+      if (!cleanedWord) {
+        return word;
+      }
+
       const halfIndex = Math.ceil(cleanedWord.length / 2);
 
       return (
         leadingSymbols +
-        `<span style="font-weight:700;">${cleanedWord.slice(
+        `<span data-hwb style="font-weight:${weight};">${cleanedWord.slice(
           0,
           halfIndex
         )}</span>` +
-        `<span style="font-weight:400;">${cleanedWord.slice(
+        `<span data-hwb style="font-weight:400;">${cleanedWord.slice(
           halfIndex
         )}</span>` +
         trailingSymbols
@@ -79,7 +90,7 @@ const boldFirstHalfOfSelectedWords = (text) => {
     .join(" ");
 };
 
-const boldFirstHalfOfSelectedText = () => {
+const boldFirstHalfOfSelectedText = (weight = 700) => {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) return false;
 
@@ -90,7 +101,8 @@ const boldFirstHalfOfSelectedText = () => {
 
   // Create a span element to hold the new formatted text
   const span = document.createElement("span");
-  span.innerHTML = boldFirstHalfOfSelectedWords(selectedText);
+  span.setAttribute("data-hwb", "");
+  span.innerHTML = boldFirstHalfOfSelectedWords(selectedText, weight);
 
   // Replace the selected text with the new span
   range.deleteContents();
@@ -101,21 +113,32 @@ const boldFirstHalfOfSelectedText = () => {
 
 // Function to reset the text to normal
 const resetText = () => {
-  if (originalHTML) {
-    document.body.innerHTML = originalHTML;
-  }
+  // Only remove altered elements
+  const allHwbElements = document.body.querySelectorAll("[data-hwb]");
+
+  allHwbElements.forEach((element) => {
+    const parent = element.parentNode;
+    if (parent) {
+      while (element.firstChild) {
+        parent.insertBefore(element.firstChild, element);
+      }
+      parent.removeChild(element);
+    }
+  });
+
+  // Normalize text nodes to merge adjacent text nodes
+  document.body.normalize();
 };
 
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "toggleBold") {
-    if (request.isBolded && !isBolded) {
-      // Save the original HTML only once
-      if (!originalHTML) originalHTML = document.body.innerHTML;
+    currentBoldWeight = request.boldWeight || 700;
 
-      const isSelectionBolded = boldFirstHalfOfSelectedText();
+    if (request.isBolded && !isBolded) {
+      const isSelectionBolded = boldFirstHalfOfSelectedText(currentBoldWeight);
       if (!isSelectionBolded) {
-        boldFirstHalfOfWords();
+        boldFirstHalfOfWords(currentBoldWeight);
       }
       isBolded = true;
       sendResponse({ success: true, state: "bolded" });
@@ -123,6 +146,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       resetText();
       isBolded = false;
       sendResponse({ success: true, state: "reset" });
+    }
+  } else if (request.action === "updateBoldWeight") {
+    currentBoldWeight = request.boldWeight;
+
+    // Reapply bolding with new weight if currently active
+    if (isBolded) {
+      resetText();
+      boldFirstHalfOfWords(currentBoldWeight);
+      sendResponse({ success: true, state: "updated" });
     }
   }
 });
