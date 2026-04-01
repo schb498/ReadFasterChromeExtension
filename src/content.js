@@ -1,10 +1,11 @@
 let isBolded = false;
 let currentBoldWeight = 700;
+let isFullPageBold = false; // Added to track scope without changing existing logic
 
 // Bold the first half of every word in text nodes
 const boldFirstHalfOfWords = (weight = 700) => {
   const textElements = document.body.querySelectorAll(
-    "p, h1, h2, h3, h4, h5, h6, span, a, li, pre, b, i, strike, blockquote, strong, em, code, small, sub, sup"
+    "p, h1, h2, h3, h4, h5, h6, span, a, li, pre, b, i, strike, blockquote, strong, em, code, small, sub, sup",
   );
 
   textElements.forEach((element) => {
@@ -34,10 +35,10 @@ const boldFirstHalfOfWords = (weight = 700) => {
             leadingSymbols +
             `<span data-hwb style="font-weight:${weight};">${cleanedWord.slice(
               0,
-              halfIndex
+              halfIndex,
             )}</span>` +
             `<span data-hwb style="font-weight:400;">${cleanedWord.slice(
-              halfIndex
+              halfIndex,
             )}</span>` +
             trailingSymbols
           );
@@ -79,10 +80,10 @@ const boldFirstHalfOfSelectedWords = (text, weight = 700) => {
         leadingSymbols +
         `<span data-hwb style="font-weight:${weight};">${cleanedWord.slice(
           0,
-          halfIndex
+          halfIndex,
         )}</span>` +
         `<span data-hwb style="font-weight:400;">${cleanedWord.slice(
-          halfIndex
+          halfIndex,
         )}</span>` +
         trailingSymbols
       );
@@ -135,28 +136,50 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "toggleBold") {
     currentBoldWeight = request.boldWeight || 700;
 
-    if (request.isBolded && !isBolded) {
-      const isSelectionBolded = boldFirstHalfOfSelectedText(currentBoldWeight);
-      if (!isSelectionBolded) {
+    if (request.isBolded) {
+      // 1. Try to bold selection first
+      const selectionApplied = boldFirstHalfOfSelectedText(currentBoldWeight);
+
+      // Update internal flags and storage mode
+      isBolded = true;
+      isFullPageBold = !selectionApplied;
+      const mode = selectionApplied ? "selection" : "global";
+
+      if (!selectionApplied) {
         boldFirstHalfOfWords(currentBoldWeight);
       }
-      isBolded = true;
+
+      chrome.storage.local.set(
+        { extensionEnabled: true, boldMode: mode },
+        () => {
+          chrome.runtime.sendMessage({ action: "syncBadge" });
+        },
+      );
+
       sendResponse({ success: true, state: "bolded" });
-    } else if (!request.isBolded && isBolded) {
+    } else {
       resetText();
       isBolded = false;
+      isFullPageBold = false;
+      chrome.storage.local.set(
+        { extensionEnabled: false, boldMode: null },
+        () => {
+          chrome.runtime.sendMessage({ action: "syncBadge" });
+        },
+      );
       sendResponse({ success: true, state: "reset" });
     }
   } else if (request.action === "updateBoldWeight") {
     currentBoldWeight = request.boldWeight;
 
-    // Reapply bolding with new weight if currently active
-    if (isBolded) {
+    // Reapply bolding with new weight ONLY if full page was active
+    if (isBolded && isFullPageBold) {
       resetText();
       boldFirstHalfOfWords(currentBoldWeight);
       sendResponse({ success: true, state: "updated" });
     }
   }
+  return true;
 });
 
 // Get cursor selected text
@@ -167,3 +190,28 @@ document.addEventListener("mouseup", () => {
     chrome.runtime.sendMessage({ text: selectedText });
   }
 });
+
+// INITIALISATION: This runs on Page Load / Refresh
+chrome.storage.local.get(
+  ["extensionEnabled", "boldWeight", "boldMode"],
+  (result) => {
+    if (result.extensionEnabled) {
+      currentBoldWeight = result.boldWeight || 700;
+
+      // CRITICAL FIX: Only auto-bold if the previous mode was 'global'
+      if (result.boldMode === "global") {
+        boldFirstHalfOfWords(currentBoldWeight);
+        isBolded = true;
+        isFullPageBold = true;
+        chrome.runtime.sendMessage({ action: "syncBadge" });
+      } else {
+        // Deactivate for new page if it was just a selection
+        isBolded = false;
+        isFullPageBold = false;
+        chrome.storage.local.set({ extensionEnabled: false }, () => {
+          chrome.runtime.sendMessage({ action: "syncBadge" });
+        });
+      }
+    }
+  },
+);

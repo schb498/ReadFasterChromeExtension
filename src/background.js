@@ -1,46 +1,65 @@
+// 1. Initialise global state on install
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("Extension installed!");
+  chrome.storage.local.set({
+    extensionEnabled: false,
+    boldWeight: 700,
+    boldMode: "global",
+  });
 });
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.text) {
-    console.log("Received selected text:", message.text);
-  }
-});
-
-// Helper function to update badge for a tab
+// 2. Updated Helper: Syncs badge based on Mode and Enabled state
 const updateBadge = (tabId) => {
-  chrome.storage.local.get([tabId.toString()], (result) => {
-    const isBolded = result[tabId.toString()] || false;
+  chrome.storage.local.get(["extensionEnabled", "boldMode"], (result) => {
+    const isEnabled = result.extensionEnabled || false;
+    const mode = result.boldMode || "global";
+
+    // Show badge if extension is ON.
+    // Content script handles turning isEnabled to false on refresh if mode was 'selection'.
+    const shouldShowOn = isEnabled;
+
     chrome.action.setBadgeText({
-      text: isBolded ? "ON" : "",
+      text: shouldShowOn ? "ON" : "",
       tabId: tabId,
     });
+
     chrome.action.setBadgeBackgroundColor({
-      color: isBolded ? "#667eea" : "#00000000", // Transparent when off
+      color: "#667eea",
       tabId: tabId,
     });
   });
 };
 
-// Update badge when switching tabs
+// 3. Centralised Message Listener (MERGED)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "syncBadge") {
+    // Determine the Tab ID: Use sender if from content script, query active if from popup
+    const tabId = sender.tab ? sender.tab.id : null;
+
+    if (tabId) {
+      updateBadge(tabId);
+    } else {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) updateBadge(tabs[0].id);
+      });
+    }
+  }
+
+  // Log selected text from content script
+  if (message.text) {
+    console.log("Received selected text:", message.text);
+  }
+
+  return true; // Keep channel open for async
+});
+
+// 4. Update badge when switching tabs
 chrome.tabs.onActivated.addListener((activeInfo) => {
   updateBadge(activeInfo.tabId);
 });
 
-// Update badge when tab is updated (e.g., navigation)
+// 5. Update badge when tab is updated (navigation/refresh)
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "complete") {
     updateBadge(tabId);
   }
-});
-
-// Clear state when tab is closed
-chrome.tabs.onRemoved.addListener((tabId) => {
-  chrome.storage.local.remove([tabId.toString()]);
-});
-
-// Clear all states when the extension is reloaded or updated
-chrome.runtime.onStartup.addListener(() => {
-  chrome.storage.local.clear();
 });

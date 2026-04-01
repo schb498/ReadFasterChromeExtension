@@ -21,46 +21,44 @@ function App() {
   const [boldWeight, setBoldWeight] = useState(700);
 
   useEffect(() => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tabId = tabs[0]?.id;
-      if (!tabId) return;
-
-      chrome.storage.local.get(
-        [tabId.toString(), `${tabId}_weight`],
-        (result) => {
-          setIsBolded(result[tabId.toString()] || false);
-          setBoldWeight(result[`${tabId}_weight`] || 700);
-        }
-      );
+    // Use a generic key like 'extensionEnabled' instead of tabId
+    chrome.storage.local.get(["extensionEnabled", "boldWeight"], (result) => {
+      setIsBolded(result.extensionEnabled || false);
+      setBoldWeight(result.boldWeight || 700);
     });
   }, []);
 
   const toggleWebpageBold = () => {
     const newValue = !isBolded;
+    setIsBolded(newValue);
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tabId = tabs[0]?.id;
       if (!tabId) return;
 
-      chrome.tabs.sendMessage(tabId, {
-        action: "toggleBold",
-        isBolded: newValue,
-        boldWeight: boldWeight,
-      });
+      // Check if user has a selection BEFORE sending the message
+      chrome.scripting.executeScript(
+        {
+          target: { tabId },
+          func: () => window.getSelection()?.toString()?.trim().length ?? 0 > 0,
+        },
+        (results) => {
+          const hasSelection = results[0]?.result;
 
-      chrome.storage.local.set({ [tabId.toString()]: newValue });
+          // Save the specific mode so the next page load knows what happened
+          chrome.storage.local.set({
+            extensionEnabled: newValue,
+            boldMode: hasSelection ? "selection" : "global",
+          });
 
-      chrome.action.setBadgeText({
-        text: newValue ? "ON" : "",
-        tabId: tabId,
-      });
-      chrome.action.setBadgeBackgroundColor({
-        color: newValue ? "#667eea" : "#00000000",
-        tabId: tabId,
-      });
+          chrome.tabs.sendMessage(tabId, {
+            action: "toggleBold",
+            isBolded: newValue,
+            boldWeight: boldWeight,
+          });
+        },
+      );
     });
-
-    setIsBolded(newValue);
   };
 
   const handleBoldWeightChange = (value: number) => {
@@ -83,7 +81,7 @@ function App() {
 
   const togglePopupBold = () => {
     const textElements = document.body.querySelectorAll(
-      "p, h1, h2, h3, h4, h5, h6, span, a, li"
+      "p, h1, h2, h3, h4, h5, h6, span, a, li",
     );
 
     if (!isPopupBolded) {
@@ -106,9 +104,9 @@ function App() {
 
               return `${leadingSymbols}<span style="font-weight: ${boldWeight};">${cleanedWord.slice(
                 0,
-                halfIndex
+                halfIndex,
               )}</span><span style="font-weight: 400;">${cleanedWord.slice(
-                halfIndex
+                halfIndex,
               )}</span>${trailingSymbols}`;
             });
 
