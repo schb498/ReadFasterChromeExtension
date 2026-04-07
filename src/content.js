@@ -137,42 +137,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     currentBoldWeight = request.boldWeight || 700;
 
     if (request.isBolded) {
-      // 1. Try to bold selection first
       const selectionApplied = boldFirstHalfOfSelectedText(currentBoldWeight);
-
-      // Update internal flags and storage mode
       isBolded = true;
       isFullPageBold = !selectionApplied;
-      const mode = selectionApplied ? "selection" : "global";
 
       if (!selectionApplied) {
         boldFirstHalfOfWords(currentBoldWeight);
       }
-
-      chrome.storage.local.set(
-        { extensionEnabled: true, boldMode: mode },
-        () => {
-          chrome.runtime.sendMessage({ action: "syncBadge" });
-        },
-      );
-
       sendResponse({ success: true, state: "bolded" });
     } else {
       resetText();
       isBolded = false;
       isFullPageBold = false;
-      chrome.storage.local.set(
-        { extensionEnabled: false, boldMode: null },
-        () => {
-          chrome.runtime.sendMessage({ action: "syncBadge" });
-        },
-      );
       sendResponse({ success: true, state: "reset" });
     }
   } else if (request.action === "updateBoldWeight") {
     currentBoldWeight = request.boldWeight;
-
-    // Reapply bolding with new weight ONLY if full page was active
     if (isBolded && isFullPageBold) {
       resetText();
       boldFirstHalfOfWords(currentBoldWeight);
@@ -182,36 +162,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true;
 });
 
-// Get cursor selected text
 document.addEventListener("mouseup", () => {
   const selectedText = window.getSelection().toString().trim();
   if (selectedText) {
-    console.log("Selected Text:", selectedText);
     chrome.runtime.sendMessage({ text: selectedText });
   }
 });
-
-// INITIALISATION: This runs on Page Load / Refresh
-chrome.storage.local.get(
-  ["extensionEnabled", "boldWeight", "boldMode"],
-  (result) => {
-    if (result.extensionEnabled) {
-      currentBoldWeight = result.boldWeight || 700;
-
-      // CRITICAL FIX: Only auto-bold if the previous mode was 'global'
-      if (result.boldMode === "global") {
-        boldFirstHalfOfWords(currentBoldWeight);
-        isBolded = true;
-        isFullPageBold = true;
-        chrome.runtime.sendMessage({ action: "syncBadge" });
-      } else {
-        // Deactivate for new page if it was just a selection
-        isBolded = false;
-        isFullPageBold = false;
-        chrome.storage.local.set({ extensionEnabled: false }, () => {
-          chrome.runtime.sendMessage({ action: "syncBadge" });
-        });
-      }
-    }
-  },
-);

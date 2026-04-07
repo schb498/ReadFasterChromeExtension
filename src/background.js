@@ -7,18 +7,13 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// 2. Updated Helper: Syncs badge based on Mode and Enabled state
+// Helper: Syncs badge based on Tab-Specific state
 const updateBadge = (tabId) => {
-  chrome.storage.local.get(["extensionEnabled", "boldMode"], (result) => {
-    const isEnabled = result.extensionEnabled || false;
-    const mode = result.boldMode || "global";
-
-    // Show badge if extension is ON.
-    // Content script handles turning isEnabled to false on refresh if mode was 'selection'.
-    const shouldShowOn = isEnabled;
+  chrome.storage.local.get([`tab_${tabId}_enabled`], (result) => {
+    const isEnabled = result[`tab_${tabId}_enabled`] || false;
 
     chrome.action.setBadgeText({
-      text: shouldShowOn ? "ON" : "",
+      text: isEnabled ? "ON" : "",
       tabId: tabId,
     });
 
@@ -29,37 +24,49 @@ const updateBadge = (tabId) => {
   });
 };
 
-// 3. Centralised Message Listener (MERGED)
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.set({ boldWeight: 700 });
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "syncBadge") {
-    // Determine the Tab ID: Use sender if from content script, query active if from popup
-    const tabId = sender.tab ? sender.tab.id : null;
-
-    if (tabId) {
-      updateBadge(tabId);
-    } else {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) updateBadge(tabs[0].id);
-      });
-    }
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) updateBadge(tabs[0].id);
+    });
   }
-
-  // Log selected text from content script
   if (message.text) {
     console.log("Received selected text:", message.text);
   }
-
-  return true; // Keep channel open for async
+  return true;
 });
 
-// 4. Update badge when switching tabs
+// Auto-toggle bolding ONLY for the refreshed tab if it was globally enabled
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === "complete") {
+    const enabledKey = `tab_${tabId}_enabled`;
+    const modeKey = `tab_${tabId}_mode`;
+
+    chrome.storage.local.get([enabledKey, modeKey, "boldWeight"], (result) => {
+      if (result[enabledKey] && result[modeKey] === "global") {
+        chrome.tabs.sendMessage(tabId, {
+          action: "toggleBold",
+          isBolded: true,
+          boldWeight: result.boldWeight || 700,
+        });
+      } else if (result[modeKey] === "selection") {
+        // Clear state if it was just a selection (selection doesn't persist refresh)
+        chrome.storage.local.remove([enabledKey, modeKey]);
+      }
+      updateBadge(tabId);
+    });
+  }
+});
+
 chrome.tabs.onActivated.addListener((activeInfo) => {
   updateBadge(activeInfo.tabId);
 });
 
-// 5. Update badge when tab is updated (navigation/refresh)
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status === "complete") {
-    updateBadge(tabId);
-  }
+// Clean up storage when tab is closed
+chrome.tabs.onRemoved.addListener((tabId) => {
+  chrome.storage.local.remove([`tab_${tabId}_enabled`, `tab_${tabId}_mode`]);
 });

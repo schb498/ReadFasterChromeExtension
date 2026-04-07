@@ -1,3 +1,4 @@
+/* global chrome */
 import "@mantine/core/styles.css";
 import styles from "./App.module.css";
 import {
@@ -21,10 +22,18 @@ function App() {
   const [boldWeight, setBoldWeight] = useState(700);
 
   useEffect(() => {
-    // Use a generic key like 'extensionEnabled' instead of tabId
-    chrome.storage.local.get(["extensionEnabled", "boldWeight"], (result) => {
-      setIsBolded(result.extensionEnabled || false);
-      setBoldWeight(result.boldWeight || 700);
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs[0]?.id;
+      if (!tabId) return;
+
+      // Use tab-specific key to check if THIS tab is enabled
+      chrome.storage.local.get(
+        [`tab_${tabId}_enabled`, "boldWeight"],
+        (result) => {
+          setIsBolded(result[`tab_${tabId}_enabled`] || false);
+          setBoldWeight(result.boldWeight || 700);
+        },
+      );
     });
   }, []);
 
@@ -36,7 +45,6 @@ function App() {
       const tabId = tabs[0]?.id;
       if (!tabId) return;
 
-      // Check if user has a selection BEFORE sending the message
       chrome.scripting.executeScript(
         {
           target: { tabId },
@@ -44,12 +52,18 @@ function App() {
         },
         (results) => {
           const hasSelection = results[0]?.result;
+          const mode = hasSelection ? "selection" : "global";
 
-          // Save the specific mode so the next page load knows what happened
-          chrome.storage.local.set({
-            extensionEnabled: newValue,
-            boldMode: hasSelection ? "selection" : "global",
-          });
+          // SAVE TAB-SPECIFIC STATE
+          chrome.storage.local.set(
+            {
+              [`tab_${tabId}_enabled`]: newValue,
+              [`tab_${tabId}_mode`]: mode,
+            },
+            () => {
+              chrome.runtime.sendMessage({ action: "syncBadge" });
+            },
+          );
 
           chrome.tabs.sendMessage(tabId, {
             action: "toggleBold",
@@ -63,14 +77,12 @@ function App() {
 
   const handleBoldWeightChange = (value: number) => {
     setBoldWeight(value);
+    // Weight stays global as a preference
+    chrome.storage.local.set({ boldWeight: value });
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tabId = tabs[0]?.id;
-      if (!tabId) return;
-
-      chrome.storage.local.set({ [`${tabId}_weight`]: value });
-
-      if (isBolded) {
+      if (tabId && isBolded) {
         chrome.tabs.sendMessage(tabId, {
           action: "updateBoldWeight",
           boldWeight: value,
@@ -93,21 +105,15 @@ function App() {
               const leadingSymbols = leadingSymbolsMatch
                 ? leadingSymbolsMatch[0]
                 : "";
-
               const trailingSymbolsMatch = word.match(/([^\w]+)$/);
               const trailingSymbols = trailingSymbolsMatch
                 ? trailingSymbolsMatch[0]
                 : "";
-
               const cleanedWord = word.replace(/^[^\w]+|[^\w]+$/g, "");
+              if (!cleanedWord) return word;
               const halfIndex = Math.ceil(cleanedWord.length / 2);
 
-              return `${leadingSymbols}<span style="font-weight: ${boldWeight};">${cleanedWord.slice(
-                0,
-                halfIndex,
-              )}</span><span style="font-weight: 400;">${cleanedWord.slice(
-                halfIndex,
-              )}</span>${trailingSymbols}`;
+              return `${leadingSymbols}<span style="font-weight: ${boldWeight};">${cleanedWord.slice(0, halfIndex)}</span><span style="font-weight: 400;">${cleanedWord.slice(halfIndex)}</span>${trailingSymbols}`;
             });
 
             const spanWrapper = document.createElement("span");
@@ -117,12 +123,8 @@ function App() {
         });
       });
     } else {
-      textElements.forEach((element) => {
-        const el = element as HTMLElement;
-        el.innerHTML = el.innerHTML.replace(/<\/?span[^>]*>/g, "");
-      });
+      window.location.reload();
     }
-
     setIsPopupBolded(!isPopupBolded);
   };
 
@@ -137,9 +139,6 @@ function App() {
                 Half Word Bolder
               </Text>
             </Group>
-            <Text ta="center" size="xs" c="dimmed" mt="xs">
-              Improve reading experience by bolding the first half of each word
-            </Text>
           </Paper>
 
           <Stack gap="lg" className={styles.content}>
@@ -160,17 +159,12 @@ function App() {
                       </Badge>
                     )}
                   </Group>
-                  <Text size="xs" c="dimmed">
-                    Toggle bolding for this webpage
-                  </Text>
                 </div>
                 <Switch
                   checked={isBolded}
                   onChange={toggleWebpageBold}
                   size="lg"
                   color="teal"
-                  onLabel="ON"
-                  offLabel="OFF"
                 />
               </Group>
             </Paper>
@@ -185,50 +179,19 @@ function App() {
                     {boldWeight}
                   </Badge>
                 </Group>
-                <Text size="xs" c="dimmed" mb="xs">
-                  Adjust the weight of the bolded text
-                </Text>
                 <Group grow>
-                  <Button
-                    variant={boldWeight === 300 ? "filled" : "light"}
-                    color="violet"
-                    size="xs"
-                    onClick={() => handleBoldWeightChange(300)}
-                  >
-                    Light
-                  </Button>
-                  <Button
-                    variant={boldWeight === 400 ? "filled" : "light"}
-                    color="violet"
-                    size="xs"
-                    onClick={() => handleBoldWeightChange(400)}
-                  >
-                    Normal
-                  </Button>
-                  <Button
-                    variant={boldWeight === 600 ? "filled" : "light"}
-                    color="violet"
-                    size="xs"
-                    onClick={() => handleBoldWeightChange(600)}
-                  >
-                    Semi
-                  </Button>
-                  <Button
-                    variant={boldWeight === 700 ? "filled" : "light"}
-                    color="violet"
-                    size="xs"
-                    onClick={() => handleBoldWeightChange(700)}
-                  >
-                    Bold
-                  </Button>
-                  <Button
-                    variant={boldWeight === 900 ? "filled" : "light"}
-                    color="violet"
-                    size="xs"
-                    onClick={() => handleBoldWeightChange(900)}
-                  >
-                    Black
-                  </Button>
+                  {[300, 400, 600, 700, 900].map((w) => (
+                    <Button
+                      key={w}
+                      variant={boldWeight === w ? "filled" : "light"}
+                      color="violet"
+                      size="xs"
+                      px={4}
+                      onClick={() => handleBoldWeightChange(w)}
+                    >
+                      {w}
+                    </Button>
+                  ))}
                 </Group>
               </Stack>
             </Paper>
@@ -238,24 +201,12 @@ function App() {
             <Paper
               p="md"
               radius="md"
-              className={`${styles.card} ${
-                isPopupBolded ? styles.cardActiveDemo : ""
-              }`}
+              className={`${styles.card} ${isPopupBolded ? styles.cardActiveDemo : ""}`}
             >
               <Group justify="space-between" align="center">
                 <div className={styles.cardText}>
-                  <Group gap="xs" mb={4}>
-                    <Text size="md" fw={600}>
-                      Try Example
-                    </Text>
-                    {isPopupBolded && (
-                      <Badge size="sm" color="blue" variant="filled">
-                        Active
-                      </Badge>
-                    )}
-                  </Group>
-                  <Text size="xs" c="dimmed">
-                    See the effect on this popup
+                  <Text size="md" fw={600}>
+                    Try Example
                   </Text>
                 </div>
                 <Switch
@@ -263,8 +214,6 @@ function App() {
                   onChange={togglePopupBold}
                   size="lg"
                   color="blue"
-                  onLabel="ON"
-                  offLabel="OFF"
                 />
               </Group>
             </Paper>
