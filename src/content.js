@@ -153,18 +153,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
   } else if (request.action === "updateBoldWeight") {
     currentBoldWeight = request.boldWeight;
-    if (isBolded && isFullPageBold) {
-      resetText();
-      boldFirstHalfOfWords(currentBoldWeight);
+    if (isBolded) {
+      if (isFullPageBold) {
+        resetText();
+        boldFirstHalfOfWords(currentBoldWeight);
+      } else {
+        // Selection mode: update existing bold spans in-place
+        document.querySelectorAll("[data-hwb]").forEach((span) => {
+          if (span.style.fontWeight && span.style.fontWeight !== "400") {
+            span.style.fontWeight = currentBoldWeight;
+          }
+        });
+      }
       sendResponse({ success: true, state: "updated" });
     }
   }
   return true;
 });
 
-document.addEventListener("mouseup", () => {
-  const selectedText = window.getSelection().toString().trim();
-  if (selectedText) {
-    chrome.runtime.sendMessage({ text: selectedText });
-  }
-});

@@ -1,4 +1,3 @@
-/* global chrome */
 import "@mantine/core/styles.css";
 import styles from "./App.module.css";
 import {
@@ -48,7 +47,7 @@ function App() {
       chrome.scripting.executeScript(
         {
           target: { tabId },
-          func: () => window.getSelection()?.toString()?.trim().length ?? 0 > 0,
+          func: () => (window.getSelection()?.toString()?.trim().length ?? 0) > 0,
         },
         (results) => {
           const hasSelection = results[0]?.result;

@@ -24,18 +24,11 @@ const updateBadge = (tabId) => {
   });
 };
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.set({ boldWeight: 700 });
-});
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "syncBadge") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]?.id) updateBadge(tabs[0].id);
     });
-  }
-  if (message.text) {
-    console.log("Received selected text:", message.text);
   }
   return true;
 });
