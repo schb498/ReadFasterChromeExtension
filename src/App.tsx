@@ -19,6 +19,7 @@ function App() {
   const [isBolded, setIsBolded] = useState(false);
   const [isPopupBolded, setIsPopupBolded] = useState(false);
   const [boldWeight, setBoldWeight] = useState(700);
+  const [dimLevel, setDimLevel] = useState(1);
 
   useEffect(() => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -27,10 +28,11 @@ function App() {
 
       // Use tab-specific key to check if THIS tab is enabled
       chrome.storage.local.get(
-        [`tab_${tabId}_enabled`, "boldWeight"],
+        [`tab_${tabId}_enabled`, "boldWeight", "dimLevel"],
         (result) => {
           setIsBolded(result[`tab_${tabId}_enabled`] || false);
           setBoldWeight(result.boldWeight || 700);
+          setDimLevel(result.dimLevel ?? 1);
         },
       );
     });
@@ -68,6 +70,7 @@ function App() {
             action: "toggleBold",
             isBolded: newValue,
             boldWeight: boldWeight,
+            dimLevel: dimLevel,
           });
         },
       );
@@ -85,6 +88,22 @@ function App() {
         chrome.tabs.sendMessage(tabId, {
           action: "updateBoldWeight",
           boldWeight: value,
+        });
+      }
+    });
+  };
+
+  const handleDimChange = (value: number) => {
+    setDimLevel(value);
+    // Dim level stays global as a preference
+    chrome.storage.local.set({ dimLevel: value });
+
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs[0]?.id;
+      if (tabId && isBolded) {
+        chrome.tabs.sendMessage(tabId, {
+          action: "updateBoldWeight",
+          dimLevel: value,
         });
       }
     });
@@ -112,7 +131,7 @@ function App() {
               if (!cleanedWord) return word;
               const halfIndex = Math.ceil(cleanedWord.length / 2);
 
-              return `${leadingSymbols}<span style="font-weight: ${boldWeight};">${cleanedWord.slice(0, halfIndex)}</span><span style="font-weight: 400;">${cleanedWord.slice(halfIndex)}</span>${trailingSymbols}`;
+              return `${leadingSymbols}<span style="font-weight: ${boldWeight};">${cleanedWord.slice(0, halfIndex)}</span><span style="font-weight: 400; opacity: ${dimLevel};">${cleanedWord.slice(halfIndex)}</span>${trailingSymbols}`;
             });
 
             const spanWrapper = document.createElement("span");
@@ -189,6 +208,33 @@ function App() {
                       onClick={() => handleBoldWeightChange(w)}
                     >
                       {w}
+                    </Button>
+                  ))}
+                </Group>
+              </Stack>
+            </Paper>
+
+            <Paper p="md" radius="md" className={styles.card}>
+              <Stack gap="sm">
+                <Group justify="space-between">
+                  <Text size="md" fw={600}>
+                    Dimness
+                  </Text>
+                  <Badge variant="light" color="gray">
+                    {Math.round(dimLevel * 100)}%
+                  </Badge>
+                </Group>
+                <Group grow>
+                  {[1, 0.7, 0.5, 0.3].map((w) => (
+                    <Button
+                      key={w}
+                      variant={dimLevel === w ? "filled" : "light"}
+                      color="cyan"
+                      size="xs"
+                      px={4}
+                      onClick={() => handleDimChange(w)}
+                    >
+                      {Math.round(w * 100)}%
                     </Button>
                   ))}
                 </Group>

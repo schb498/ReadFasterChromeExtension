@@ -1,9 +1,10 @@
 let isBolded = false;
 let currentBoldWeight = 700;
+let currentDimLevel = 1;
 let isFullPageBold = false; // Added to track scope without changing existing logic
 
 // Bold the first half of every word in text nodes
-const boldFirstHalfOfWords = (weight = 700) => {
+const boldFirstHalfOfWords = (weight = 700, dimLevel = 1) => {
   const textElements = document.body.querySelectorAll(
     "p, h1, h2, h3, h4, h5, h6, span, a, li, pre, b, i, strike, blockquote, strong, em, code, small, sub, sup",
   );
@@ -33,11 +34,11 @@ const boldFirstHalfOfWords = (weight = 700) => {
           // Construct the word with inline styles and data attribute
           return (
             leadingSymbols +
-            `<span data-hwb style="font-weight:${weight};">${cleanedWord.slice(
+            `<span data-hwb="bold" style="font-weight:${weight};">${cleanedWord.slice(
               0,
               halfIndex,
             )}</span>` +
-            `<span data-hwb style="font-weight:400;">${cleanedWord.slice(
+            `<span data-hwb="light" style="font-weight:400;opacity:${dimLevel};">${cleanedWord.slice(
               halfIndex,
             )}</span>` +
             trailingSymbols
@@ -54,7 +55,7 @@ const boldFirstHalfOfWords = (weight = 700) => {
 };
 
 // Bold only the selected text
-const boldFirstHalfOfSelectedWords = (text, weight = 700) => {
+const boldFirstHalfOfSelectedWords = (text, weight = 700, dimLevel = 1) => {
   return text
     .split(" ")
     .map((word) => {
@@ -78,11 +79,11 @@ const boldFirstHalfOfSelectedWords = (text, weight = 700) => {
 
       return (
         leadingSymbols +
-        `<span data-hwb style="font-weight:${weight};">${cleanedWord.slice(
+        `<span data-hwb="bold" style="font-weight:${weight};">${cleanedWord.slice(
           0,
           halfIndex,
         )}</span>` +
-        `<span data-hwb style="font-weight:400;">${cleanedWord.slice(
+        `<span data-hwb="light" style="font-weight:400;opacity:${dimLevel};">${cleanedWord.slice(
           halfIndex,
         )}</span>` +
         trailingSymbols
@@ -91,7 +92,7 @@ const boldFirstHalfOfSelectedWords = (text, weight = 700) => {
     .join(" ");
 };
 
-const boldFirstHalfOfSelectedText = (weight = 700) => {
+const boldFirstHalfOfSelectedText = (weight = 700, dimLevel = 1) => {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) return false;
 
@@ -103,7 +104,7 @@ const boldFirstHalfOfSelectedText = (weight = 700) => {
   // Create a span element to hold the new formatted text
   const span = document.createElement("span");
   span.setAttribute("data-hwb", "");
-  span.innerHTML = boldFirstHalfOfSelectedWords(selectedText, weight);
+  span.innerHTML = boldFirstHalfOfSelectedWords(selectedText, weight, dimLevel);
 
   // Replace the selected text with the new span
   range.deleteContents();
@@ -135,14 +136,18 @@ const resetText = () => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "toggleBold") {
     currentBoldWeight = request.boldWeight || 700;
+    currentDimLevel = request.dimLevel ?? 1;
 
     if (request.isBolded) {
-      const selectionApplied = boldFirstHalfOfSelectedText(currentBoldWeight);
+      const selectionApplied = boldFirstHalfOfSelectedText(
+        currentBoldWeight,
+        currentDimLevel,
+      );
       isBolded = true;
       isFullPageBold = !selectionApplied;
 
       if (!selectionApplied) {
-        boldFirstHalfOfWords(currentBoldWeight);
+        boldFirstHalfOfWords(currentBoldWeight, currentDimLevel);
       }
       sendResponse({ success: true, state: "bolded" });
     } else {
@@ -152,17 +157,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: true, state: "reset" });
     }
   } else if (request.action === "updateBoldWeight") {
-    currentBoldWeight = request.boldWeight;
+    if (request.boldWeight != null) currentBoldWeight = request.boldWeight;
+    if (request.dimLevel != null) currentDimLevel = request.dimLevel;
     if (isBolded) {
       if (isFullPageBold) {
         resetText();
-        boldFirstHalfOfWords(currentBoldWeight);
+        boldFirstHalfOfWords(currentBoldWeight, currentDimLevel);
       } else {
-        // Selection mode: update existing bold spans in-place
-        document.querySelectorAll("[data-hwb]").forEach((span) => {
-          if (span.style.fontWeight && span.style.fontWeight !== "400") {
-            span.style.fontWeight = currentBoldWeight;
-          }
+        // Selection mode: update existing spans in-place by role
+        document.querySelectorAll('[data-hwb="bold"]').forEach((span) => {
+          span.style.fontWeight = currentBoldWeight;
+        });
+        document.querySelectorAll('[data-hwb="light"]').forEach((span) => {
+          span.style.opacity = currentDimLevel;
         });
       }
       sendResponse({ success: true, state: "updated" });

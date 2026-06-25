@@ -3,6 +3,7 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({
     extensionEnabled: false,
     boldWeight: 700,
+    dimLevel: 1,
     boldMode: "global",
   });
 });
@@ -39,19 +40,23 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     const enabledKey = `tab_${tabId}_enabled`;
     const modeKey = `tab_${tabId}_mode`;
 
-    chrome.storage.local.get([enabledKey, modeKey, "boldWeight"], (result) => {
+    chrome.storage.local.get(
+      [enabledKey, modeKey, "boldWeight", "dimLevel"],
+      (result) => {
       if (result[enabledKey] && result[modeKey] === "global") {
         chrome.tabs.sendMessage(tabId, {
           action: "toggleBold",
           isBolded: true,
           boldWeight: result.boldWeight || 700,
+          dimLevel: result.dimLevel ?? 1,
         });
       } else if (result[modeKey] === "selection") {
         // Clear state if it was just a selection (selection doesn't persist refresh)
         chrome.storage.local.remove([enabledKey, modeKey]);
       }
       updateBadge(tabId);
-    });
+      },
+    );
   }
 });
 
