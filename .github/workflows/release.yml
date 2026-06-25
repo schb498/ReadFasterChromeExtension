@@ -1,0 +1,59 @@
+name: Release
+
+# Build the extension and publish a zipped, ready-to-load `dist/` to a GitHub
+# Release. Triggers when a version tag (e.g. v1.2.0) is pushed, or manually.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write # required to create releases and upload assets
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Resolve release tag
+        id: meta
+        run: |
+          VERSION=$(node -p "require('./public/manifest.json').version")
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="v$VERSION"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Package extension
+        # Zip the contents of dist/ (manifest.json at the archive root) so the
+        # artifact can be unzipped and loaded directly via "Load unpacked".
+        run: cd dist && zip -r "../text-bolder-${{ steps.meta.outputs.tag }}.zip" .
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          files: text-bolder-${{ steps.meta.outputs.tag }}.zip
+          generate_release_notes: true

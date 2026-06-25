@@ -14,6 +14,15 @@ import {
   Button,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
+import { boldifyText } from "./boldText";
+
+const SAMPLE_TEXT =
+  "Reading is easier when the first half of each word stands out.";
+
+// Ignore errors from tabs with no content script (chrome://, Web Store, PDFs).
+const sendToTab = (tabId: number, message: object) => {
+  chrome.tabs.sendMessage(tabId, message, () => void chrome.runtime.lastError);
+};
 
 function App() {
   const [isBolded, setIsBolded] = useState(false);
@@ -66,7 +75,7 @@ function App() {
             },
           );
 
-          chrome.tabs.sendMessage(tabId, {
+          sendToTab(tabId, {
             action: "toggleBold",
             isBolded: newValue,
             boldWeight: boldWeight,
@@ -85,7 +94,7 @@ function App() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tabId = tabs[0]?.id;
       if (tabId && isBolded) {
-        chrome.tabs.sendMessage(tabId, {
+        sendToTab(tabId, {
           action: "updateBoldWeight",
           boldWeight: value,
         });
@@ -101,49 +110,12 @@ function App() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tabId = tabs[0]?.id;
       if (tabId && isBolded) {
-        chrome.tabs.sendMessage(tabId, {
+        sendToTab(tabId, {
           action: "updateBoldWeight",
           dimLevel: value,
         });
       }
     });
-  };
-
-  const togglePopupBold = () => {
-    const textElements = document.body.querySelectorAll(
-      "p, h1, h2, h3, h4, h5, h6, span, a, li",
-    );
-
-    if (!isPopupBolded) {
-      textElements.forEach((element) => {
-        element.childNodes.forEach((node) => {
-          if (node.nodeType === Node.TEXT_NODE) {
-            const words = node.textContent?.split(" ").map((word) => {
-              const leadingSymbolsMatch = word.match(/^([^\w]+)/);
-              const leadingSymbols = leadingSymbolsMatch
-                ? leadingSymbolsMatch[0]
-                : "";
-              const trailingSymbolsMatch = word.match(/([^\w]+)$/);
-              const trailingSymbols = trailingSymbolsMatch
-                ? trailingSymbolsMatch[0]
-                : "";
-              const cleanedWord = word.replace(/^[^\w]+|[^\w]+$/g, "");
-              if (!cleanedWord) return word;
-              const halfIndex = Math.ceil(cleanedWord.length / 2);
-
-              return `${leadingSymbols}<span style="font-weight: ${boldWeight};">${cleanedWord.slice(0, halfIndex)}</span><span style="font-weight: 400; opacity: ${dimLevel};">${cleanedWord.slice(halfIndex)}</span>${trailingSymbols}`;
-            });
-
-            const spanWrapper = document.createElement("span");
-            spanWrapper.innerHTML = words?.join(" ") || "";
-            node.replaceWith(spanWrapper);
-          }
-        });
-      });
-    } else {
-      window.location.reload();
-    }
-    setIsPopupBolded(!isPopupBolded);
   };
 
   return (
@@ -256,11 +228,20 @@ function App() {
                 </div>
                 <Switch
                   checked={isPopupBolded}
-                  onChange={togglePopupBold}
+                  onChange={() => setIsPopupBolded((v) => !v)}
                   size="lg"
                   color="blue"
                 />
               </Group>
+              {isPopupBolded && (
+                <Text
+                  size="sm"
+                  mt="sm"
+                  dangerouslySetInnerHTML={{
+                    __html: boldifyText(SAMPLE_TEXT, boldWeight, dimLevel),
+                  }}
+                />
+              )}
             </Paper>
           </Stack>
         </Stack>
